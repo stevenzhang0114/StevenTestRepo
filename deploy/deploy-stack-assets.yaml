@@ -1,0 +1,58 @@
+---
+- set_fact:
+    aws_tags:
+      Service: "demoapp"
+      Environment: "{{ deployment.environment }}"
+      Application: "appserver"
+      Owner: "cloudops@jhg.com.au"
+      Role: "ec2"
+
+- name: assume role
+  sts_assume_role:
+    region: "ap-southeast-2"
+    role_arn: "arn:aws:iam::{{ deployment.aws_account_id }}:role/resource-orchestrator"
+    role_session_name: "resource-orchestrator"
+  register: assumed_role
+
+- name: Check that stack exists
+  cloudformation_facts:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    stack_name: "{{ deployment.stack_name }}"
+    region: "{{ deployment.region }}"
+  register: "cloudformation_facts"
+  failed_when: cloudformation[deployment.stack_name] is undefined
+  ignore_errors: yes
+
+- name: Set ami_id if existing stack is present
+  set_fact:
+    ami_id: "{{ cloudformation_facts.ansible_facts.cloudformation[deployment.stack_name].stack_parameters['AmiId'] }}"
+  when: cloudformation_facts|success
+
+- name: Set ami_id if new stack
+  set_fact:
+    ami_id: "{{ lookup('aws_ssm', '/ami/windows/ws2016/base/latest/amiid', region=deployment.region ) }}"
+  when: cloudformation_facts|failed or upgrade_ami == "true"
+
+- name: "deploying {{ deployment.stack_name }}"
+  cloudformation:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    stack_name: "{{ deployment.stack_name }}"
+    state: "present"
+    region: "{{ deployment.region }}"
+    disable_rollback: true
+    template: "../cloudformation/cloudformation.yaml"
+    tags: "{{ aws_tags }}"
+    termination_protection: yes
+    template_parameters:
+      Environment: "{{ deployment.environment }}"
+      NetworkStack: "{{ deployment.network_stack }}"
+      ManagementNetworkCidr: "{{ deployment.management_network_cidr }}"
+      ClientNetworkCidr: "{{ deployment.client_network_cidr }}"
+      InstanceType: "{{ deployment.instance_type }}"
+      InstanceVolumeSize: "{{ deployment.instance_volume_size }}"
+      AmiId: "{{ ami_id }}"
+      TargetOu: "{{ deployment.target_ou }}"

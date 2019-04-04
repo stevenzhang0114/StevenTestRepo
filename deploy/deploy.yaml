@@ -1,0 +1,49 @@
+---
+- hosts: all
+  connection: local
+  become: false
+  vars:
+    deployments:
+      # Sandpit
+      - stack_name: "demoapp-appserver" #
+        aws_account_id: "046885338755" #
+        region: "ap-southeast-2" #
+        environment: "dev" #
+        network_stack: "core-network-sandpit-np-shared" #
+        client_network_cidr: "10.0.0.0/8" #
+        management_network_cidr: "10.0.0.0/8" #
+        instance_type: "t2.large" #
+        instance_volume_size: "50" #
+        target_ou: "OU=AWS,OU=Servers,DC=jhg,DC=com,DC=au" #
+
+      # ModeZero-NonProd
+      - stack_name: "demoapp-appserver" #
+        aws_account_id: "583426650014" #
+        region: "ap-southeast-2" #
+        environment: "nonprod" #
+        network_stack: "core-network-mode-zero-np-shared" #
+        client_network_cidr: "10.0.0.0/8" #
+        management_network_cidr: "10.0.0.0/8" #
+        instance_type: "t2.large" #
+        instance_volume_size: "50" #
+        target_ou: "OU=AWS,OU=Servers,DC=jhg,DC=com,DC=au" #
+
+      # ModeZero-Prod
+      - stack_name: "demoapp-appserver" #
+        aws_account_id: "520733553154" #
+        region: "ap-southeast-2" #
+        environment: "prod" #
+        network_stack: "core-network-mode-zero-pr-shared" #
+        client_network_cidr: "10.0.0.0/8" #
+        management_network_cidr: "10.0.0.0/8" #
+        instance_type: "m4.large" #
+        instance_volume_size: "50" #
+        target_ou: "OU=AWS,OU=Servers,DC=jhg,DC=com,DC=au" #
+
+  tasks:
+    - include: deploy-stack-assets.yaml
+      when: deployment.environment == deploy_env
+      with_items:
+        - "{{ deployments }}"
+      loop_control:
+        loop_var: deployment
